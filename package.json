@@ -17,6 +17,7 @@
   },
   "dependencies": {
     "element-ui": "^2.4.5",
+    "fabric": "^2.3.6",
     "vue": "^2.5.16",
     "vue-electron": "^1.0.6"
   },
