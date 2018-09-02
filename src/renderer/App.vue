@@ -33,6 +33,7 @@ export default {
         properties: ['openDirectory', 'createDirectory'],
       });
     }
+    process.chdir(this.path);
     this.screens = new Screens(this.path);
     return this.screens.load();
   },

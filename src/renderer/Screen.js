@@ -6,14 +6,17 @@ import rimraf from 'rimraf';
 export class Hotspot {
   static NEXT_SCREEN = '[next-screen]';
 
-  constructor({ next, left, top, width, height, file }) {
+  constructor({ next, left, top, width, height, file, similarly, range, timeout }) {
     this.type = 'hotspot';
-    this.next = next || [];
+    this.next = next || [Hotspot.NEXT_SCREEN];
     this.left = left;
     this.top = top;
     this.width = width;
     this.height = height;
     this.file = file;
+    this.similarly = similarly !== undefined ? similarly : 0.8;
+    this.range = range !== undefined ? range : 10;
+    this.timeout = timeout !== undefined ? timeout : 10;
   }
 
   get name() {
@@ -28,6 +31,9 @@ export class Hotspot {
       width: this.width,
       height: this.height,
       file: this.file,
+      similarly: this.similarly,
+      range: this.range,
+      timeout: this.timeout,
     };
   }
 
@@ -37,15 +43,16 @@ export class Hotspot {
 }
 
 export class DetectZone {
-  constructor({ left, top, width, height, file, similarly, range }) {
+  constructor({ left, top, width, height, file, similarly, range, timeout }) {
     this.type = 'detectZone';
     this.left = left;
     this.top = top;
     this.width = width;
     this.height = height;
     this.file = file;
-    this.similarly = similarly || 0.8;
-    this.range = range || 0;
+    this.similarly = similarly !== undefined ? similarly : 0.8;
+    this.range = range !== undefined ? range : 10;
+    this.timeout = timeout !== undefined ? timeout : 10;
   }
 
   toJSON() {
@@ -57,6 +64,7 @@ export class DetectZone {
       file: this.file,
       similarly: this.similarly,
       range: this.range,
+      timeout: this.timeout,
     };
   }
 
@@ -67,7 +75,7 @@ export class DetectZone {
 
 export class Screen {
   constructor() {
-    this.match = false;
+    this.match = true;
     this.name = null;
     this.image = null;
     this.hotspots = [];
@@ -122,22 +130,24 @@ export class Screen {
 
   async loadDataurl() {
     if (process.env.NODE_ENV === 'development') {
-      const image = await Jimp.read(this.image);
+      const image = await Jimp.read(path.join('screens', this.image));
       this.dataurl = await image.getBase64Async('image/png');
     } else {
-      this.dataurl = `file://${this.image}`;
+      this.dataurl = `file://${path.join(process.cwd(), 'screens', this.image)}`;
     }
   }
 
   async generate(basepath) {
-    const image = await Jimp.read(this.image);
+    const image = await Jimp.read(path.join('screens', this.image));
     const names = {};
     for (const hotspot of this.hotspots) {
       let file = null;
       if (hotspot.file) {
         file = hotspot.file;
       } else {
-        let name = hotspot.name;
+        let name = hotspot.next[0];
+        if (!name) name = '';
+        if (name == '[any]') name = '_a';
         if (name == '[prev-screen]') name = '_b';
         if (name == '[next-screen]') name = '_n';
         file = `btn_${this.name}_${name}.png`;
@@ -149,7 +159,6 @@ export class Screen {
       hotspot.file = file;
       names[file] = 1;
 
-      const img = await image.clone()
       await image.clone()
         .crop(hotspot.left, hotspot.top, hotspot.width, hotspot.height)
         .writeAsync(path.join(basepath, file));
@@ -168,7 +177,6 @@ export class Screen {
       detectZone.file = file;
       names[file] = 1;
 
-      const img = await image.clone()
       await image.clone()
         .crop(detectZone.left, detectZone.top, detectZone.width, detectZone.height)
         .writeAsync(path.join(basepath, file));
@@ -183,7 +191,7 @@ export class Screens {
   }
 
   [Symbol.iterator]() {
-    return this.screens;
+    return this.screens.values();
   }
 
   async load() {
@@ -203,9 +211,20 @@ export class Screens {
   }
 
   async save() {
+    const data = {
+      screens: this.screens,
+    };
+    if (this.screens.length) {
+      const image = await new Promise(r => {
+        fabric.Image.fromURL(this.screens[0].dataurl, r);
+      });
+      data.width = image.width;
+      data.height = image.height;
+    }
+
     return new Promise((r, j) => fs.writeFile(
       path.join(this.path, 'meta.json'),
-      JSON.stringify({ screens: this.screens }),
+      JSON.stringify(data),
       err => err ? j(err) : r(),
     ));
   }
@@ -218,7 +237,7 @@ export class Screens {
     const index = this.screens.indexOf(screen);
     if (index > -1) {
       try {
-        fs.unlinkSync(screen.image);
+        fs.unlinkSync(path.join('screens', screen.image));
       } catch (erro) {
         if (err.code !== 'ENOENT') {
           throw(err);

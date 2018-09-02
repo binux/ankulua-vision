@@ -1,9 +1,11 @@
 <template>
   <div>
-    <el-button @click="$emit('save', screen)" :disabled="!screen.name">Save</el-button>
+    <el-button @click="$emit('save', screen)" :disabled="!screen.name || screenNames.indexOf(screen.name) !== -1">Save</el-button>
+    <span v-if="!screen.name">need screen name</span>
+    <span v-if="screen.name && screenNames.indexOf(screen.name) !== -1">duplicate name</span>
     <el-container>
       <el-main ref="main">
-        <el-input v-model="screen.name" placeholder="name" ref="nameInput"></el-input>
+        <el-autocomplete v-model="screen.name" placeholder="name" :fetch-suggestions="nameSuggest"></el-autocomplete>
         <canvas id="c"></canvas>
       </el-main>
 
@@ -22,26 +24,32 @@
           <img style="max-width: 300px" :src="image.toDataURL({ left: this.editing.left, top: this.editing.top, width: this.editing.width, height: this.editing.height })">
           <br />
           <el-select v-model="editing.next" multiple allow-create filterable placeholder="name">
+            <el-option label="[any]" value="[any]"></el-option>
             <el-option label="[prev-screen]" value="[prev-screen]"></el-option>
             <el-option label="[next-screen]" value="[next-screen]"></el-option>
-            <el-option v-for="s in screens.screens" :key="s.name" :label="s.name" :value="s.name"></el-option>
+            <el-option v-for="name in screenNames" :key="name" :label="name" :value="name"></el-option>
+            <el-option v-for="name in newScreenNames" :key="name" :label="name" :value="name"></el-option>
           </el-select>
-          <pre>{{ JSON.stringify(editing, null, 2) }}</pre>
-          <el-button type="danger" @click="delHotspot(editing)">Delete</el-button>
         </div>
         <div v-else-if="editing && editing.type == 'detectZone'">
           <h2>Detection Zone</h2>
           <img style="max-width: 300px" :src="image.toDataURL({ left: this.editing.left, top: this.editing.top, width: this.editing.width, height: this.editing.height })">
+        </div>
+        <div v-if="editing">
           <p>
-            similarly: {{ editing.similarly }} <br />
+            similarly: <el-input size="mini" v-model.number="editing.similarly" style="width: 55px"></el-input>  <br />
             <el-slider :min="0" :max="1" :step="0.05" v-model="editing.similarly"></el-slider>
           </p>
           <p>
-            search range: {{ editing.range }} <br />
-            <el-slider :min="0" :max="image.width" v-model="editing.range"></el-slider>
+            search range: <el-input size="mini" v-model.number="editing.range" style="width: 70px"></el-input>  <br />
+            <el-slider :min="0" :max="image.width * 2" v-model="editing.range"></el-slider>
+          </p>
+          <p>
+            timeout: <el-input size="mini" v-model.number="editing.timeout" style="width: 70px"></el-input>  <br />
+            <el-slider :min="1" :max="300" v-model="editing.timeout"></el-slider>
           </p>
           <pre>{{ JSON.stringify(editing, null, 2) }}</pre>
-          <el-button type="danger" @click="delDetectZone(editing)">Delete</el-button>
+          <el-button type="danger" @click="del(editing)">Delete</el-button>
         </div>
       </el-aside>
     </el-container>
@@ -78,6 +86,9 @@ export default {
       adding: null,
       editing: null,
       rangeBox: null,
+
+      screenNames: [],
+      newScreenNames: [],
     };
   },
   name: 'screen-view',
@@ -91,7 +102,7 @@ export default {
       }
     },
     editing() {
-      if (this.editing && this.editing.type == 'detectZone' && !this.rangeBox) {
+      if (this.editing && !this.rangeBox) {
         this.rangeBox = new fabric.Rect({
           left: this.editing.left - this.editing.range / 2,
           top: this.editing.top - this.editing.range / 2,
@@ -115,7 +126,7 @@ export default {
       }
     },
     'editing.range': function() {
-      if (this.rangeBox && this.editing && this.editing.type == 'detectZone') {
+      if (this.rangeBox && this.editing) {
         this.rangeBox.set({
           left: this.editing.left - this.editing.range / 2,
           top: this.editing.top - this.editing.range / 2,
@@ -127,6 +138,23 @@ export default {
     },
   },
   async mounted() {
+    const seenNames = new Set();
+    const newNames = new Set();
+    for (const screen of this.screens.screens) {
+      if (screen === this.screen) continue;
+      if (!screen.name) continue;
+      seenNames.add(screen.name);
+      for (const hotspot of screen.hotspots) {
+        for (const next of hotspot.next) {
+          if (!next) continue;
+          if (next.startsWith('[')) continue;
+          newNames.add(next)
+        }
+      }
+    }
+    this.newScreenNames = [...newNames].filter(x => !seenNames.has(x));
+    this.screenNames = [...seenNames];
+
     await this.openImage();
   },
   methods: {
@@ -204,6 +232,13 @@ export default {
         detectZone.rect = null;
       }
     },
+    del(zone) {
+      if (zone.type === 'hotspot') {
+        this.delHotspot(zone);
+      } else if (zone.type === 'detectZone') {
+        this.delDetectZone(zone)
+      }
+    },
     initCanvas() {
       this.canvas = new fabric.Canvas('c');
       let startPointer = null;
@@ -266,7 +301,7 @@ export default {
       this.image = await new Promise(r => {
         fabric.Image.fromURL(this.screen.dataurl, r);
       });
-      const ratio = Math.min(this.$refs.nameInput.$el.clientWidth / this.image.width, (window.innerHeight - 100) / this.image.height);
+      const ratio = Math.min((this.$refs.main.$el.clientWidth - 40) / this.image.width, (window.innerHeight - 100) / this.image.height);
       this.canvas.setZoom(ratio);
       this.canvas.setWidth(this.image.width * ratio);
       this.canvas.setHeight(this.image.height * ratio);
@@ -278,6 +313,10 @@ export default {
       this.canvas.requestRenderAll();
       this.editing = null;
     },
+    nameSuggest(queryString, cb) {
+      const result = queryString ? this.newScreenNames.filter(x => x.toLowerCase().indexOf(queryString.toLowerCase()) === 0) : this.newScreenNames;
+      cb(result.map(x => ({ value: x })));
+    },
   },
 }
 </script>
@@ -288,5 +327,8 @@ export default {
 }
 p {
   margin-top: 10px;
+}
+.el-autocomplete {
+  display: block;
 }
 </style>
