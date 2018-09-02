@@ -6,9 +6,9 @@ import rimraf from 'rimraf';
 export class Hotspot {
   static NEXT_SCREEN = '[next-screen]';
 
-  constructor({ name, left, top, width, height, file }) {
+  constructor({ next, left, top, width, height, file }) {
     this.type = 'hotspot';
-    this._name = name || Hotspot.NEXT_SCREEN;
+    this.next = next || [];
     this.left = left;
     this.top = top;
     this.width = width;
@@ -16,25 +16,13 @@ export class Hotspot {
     this.file = file;
   }
 
-  set name(val) {
-    this._name = val;
-    if (this.rect) {
-      for (const o of this.rect.getObjects()) {
-        if (o.get('type') == 'text') {
-          o.set('text', val);
-          o.canvas.renderAll();
-        }
-      }
-    }
-  }
-
   get name() {
-    return this._name;
+    return this.next.join(' | ') || '[any]';
   }
 
   toJSON() {
     return {
-      name: this.name,
+      next: this.next,
       left: this.left,
       top: this.top,
       width: this.width,
@@ -50,7 +38,7 @@ export class Hotspot {
 
 export class DetectZone {
   constructor({ left, top, width, height, file }) {
-    this.type = 'detectzone';
+    this.type = 'detectZone';
     this.left = left;
     this.top = top;
     this.width = width;
@@ -129,8 +117,12 @@ export class Screen {
   }
 
   async loadDataurl() {
-    const image = await Jimp.read(this.image);
-    this.dataurl = await image.getBase64Async('image/png');
+    if (process.env.NODE_ENV === 'development') {
+      const image = await Jimp.read(this.image);
+      this.dataurl = await image.getBase64Async('image/png');
+    } else {
+      this.dataurl = `file://${this.image}`;
+    }
   }
 
   async generate(basepath) {
@@ -235,9 +227,10 @@ export class Screens {
   async generate() {
     const imagePath = path.join(this.path, 'image');
     try {
-      await rimraf(imagePath);
+      await new Promise((r, j) => rimraf(imagePath, err => err ? j(err) : r()));
       fs.mkdirSync(imagePath);
     } catch (error) {
+      console.log(error);
       // ignore error
     }
     for (const screen of this.screens) {

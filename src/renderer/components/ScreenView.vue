@@ -7,7 +7,7 @@
         <canvas id="c"></canvas>
       </el-main>
 
-      <el-aside width="200" style="padding-top: 20px;">
+      <el-aside width="300px" style="padding-top: 20px;">
         <p>
           <el-switch v-model="screen.match" active-text="Match Screen"></el-switch>
         </p>
@@ -17,21 +17,21 @@
         <p>
           <el-button type="primary" @click="adding='detectZone'">Add Detect Zone</el-button>
         </p>
-        <div v-if="editing && editing.name">
+        <div v-if="editing && editing.type == 'hotspot'">
           <h2>Hotspot</h2>
-          <img style="max-width: 200px" :src="image.toDataURL({ left: this.editing.left, top: this.editing.top, width: this.editing.width, height: this.editing.height })">
+          <img style="max-width: 300px" :src="image.toDataURL({ left: this.editing.left, top: this.editing.top, width: this.editing.width, height: this.editing.height })">
           <br />
-          <el-select v-model="editing.name" allow-create filterable placeholder="name">
+          <el-select v-model="editing.next" multiple allow-create filterable placeholder="name">
             <el-option label="[prev-screen]" value="[prev-screen]"></el-option>
             <el-option label="[next-screen]" value="[next-screen]"></el-option>
-            <el-option v-for="s in screens" :key="s.name" :label="s.name" :value="s.name"></el-option>
+            <el-option v-for="s in screens.screens" :key="s.name" :label="s.name" :value="s.name"></el-option>
           </el-select>
           <pre>{{ JSON.stringify(editing, null, 2) }}</pre>
           <el-button type="danger" @click="delHotspot(editing)">Delete</el-button>
         </div>
-        <div v-else-if="editing">
+        <div v-else-if="editing && editing.type == 'detectZone'">
           <h2>Detection Zone</h2>
-          <img style="max-width: 200px" :src="image.toDataURL({ left: this.editing.left, top: this.editing.top, width: this.editing.width, height: this.editing.height })">
+          <img style="max-width: 300px" :src="image.toDataURL({ left: this.editing.left, top: this.editing.top, width: this.editing.width, height: this.editing.height })">
           <pre>{{ JSON.stringify(editing, null, 2) }}</pre>
           <el-button type="danger" @click="delDetectZone(editing)">Delete</el-button>
         </div>
@@ -81,6 +81,14 @@ export default {
         this.canvas.defaultCursor = 'default';
       }
     },
+    'editing.next': function() {
+      if (this.editing && this.editing.rect && this.editing.type == 'hotspot') {
+        for (const o of this.editing.rect.getObjects()) {
+          o.set('text', this.editing.name);
+          o.canvas.renderAll();
+        }
+      }
+    },
   },
   async mounted() {
     await this.openImage();
@@ -101,13 +109,14 @@ export default {
         width: hotspot.width,
         height: hotspot.height,
         fontSize: 24,
-        fill: 'gray',
+        fill: '#a9a9a9',
+        fontStyle: 'bold',
         fontFamily: 'arial',
         originX: 'center',
         originY: 'center'
       });
       const group = new fabric.Group([rect, text], {
-        opacity: 0.4,
+        opacity: 0.7,
       });
       group.setControlsVisibility({
         mtr: false,
@@ -120,6 +129,7 @@ export default {
       this.canvas.add(group);
       this.canvas.setActiveObject(group);
       this.screen.addHotspot(hotspot);
+      this.editing = hotspot;
     },
     delHotspot(hotspot) {
       this.screen.delHotspot(hotspot);
@@ -136,7 +146,7 @@ export default {
         height: detectZone.height,
         lockRotation: true,
         fill: 'orange',
-        opacity: 0.3,
+        opacity: 0.7,
       });
       rect.setControlsVisibility({
         mtr: false,
@@ -149,6 +159,7 @@ export default {
       this.canvas.add(rect);
       this.canvas.setActiveObject(rect);
       this.screen.addDetectZone(detectZone);
+      this.editing = detectZone;
     },
     delDetectZone(detectZone) {
       this.screen.delDetectZone(detectZone);
@@ -168,11 +179,14 @@ export default {
         if (!this.adding || !startPointer) return;
         const pointer = this.canvas.getPointer(o.e);
         const opt = {
-          left: Math.min(startPointer.x, pointer.x),
-          top: Math.min(startPointer.y, pointer.y),
+          left: Math.max(0, Math.min(startPointer.x, pointer.x)),
+          top: Math.max(0, Math.min(startPointer.y, pointer.y)),
           width: Math.abs(startPointer.x - pointer.x),
           height: Math.abs(startPointer.y - pointer.y),
         }
+        const zoom = this.canvas.getZoom();
+        opt.width = Math.min(this.canvas.width / zoom - opt.left, opt.width);
+        opt.height = Math.min(this.canvas.height / zoom - opt.top, opt.height);
         if (this.adding === 'hotspot') {
           const hotspot = new Hotspot(opt);
           this.addHotspot(hotspot);
@@ -212,7 +226,7 @@ export default {
       this.image = await new Promise(r => {
         fabric.Image.fromURL(this.screen.dataurl, r);
       });
-      const ratio = Math.min(this.$refs.nameInput.$el.offsetWidth / this.image.width, (window.innerHeight - 100) / this.image.height);
+      const ratio = Math.min(this.$refs.nameInput.$el.clientWidth / this.image.width, (window.innerHeight - 100) / this.image.height);
       this.canvas.setZoom(ratio);
       this.canvas.setWidth(this.image.width * ratio);
       this.canvas.setHeight(this.image.height * ratio);
@@ -222,6 +236,7 @@ export default {
       this.screen.hotspots.forEach(o => this.addHotspot(o));
       this.canvas.discardActiveObject();
       this.canvas.requestRenderAll();
+      this.editing = null;
     },
   },
 }
