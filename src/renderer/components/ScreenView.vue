@@ -1,5 +1,6 @@
 <template>
   <div>
+    <el-button @click="$emit('save', screen)" :disabled="!screen.name">Save</el-button>
     <el-container>
       <el-main ref="main">
         <el-input v-model="screen.name" placeholder="name" ref="nameInput"></el-input>
@@ -20,7 +21,7 @@
           <h2>Hotspot</h2>
           <img style="max-width: 200px" :src="image.toDataURL({ left: this.editing.left, top: this.editing.top, width: this.editing.width, height: this.editing.height })">
           <br />
-          <el-select v-model="editing.name" filterable placeholder="name">
+          <el-select v-model="editing.name" allow-create filterable placeholder="name">
             <el-option label="[prev-screen]" value="[prev-screen]"></el-option>
             <el-option label="[next-screen]" value="[next-screen]"></el-option>
             <el-option v-for="s in screens" :key="s.name" :label="s.name" :value="s.name"></el-option>
@@ -217,6 +218,10 @@ export default {
       this.canvas.setHeight(this.image.height * ratio);
       this.canvas.setBackgroundImage(this.image);
       this.canvas.renderAll();
+      this.screen.detectZones.forEach(o => this.addDetectZone(o));
+      this.screen.hotspots.forEach(o => this.addHotspot(o));
+      this.canvas.discardActiveObject();
+      this.canvas.requestRenderAll();
     },
   },
 }

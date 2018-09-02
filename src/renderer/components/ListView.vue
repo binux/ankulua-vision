@@ -1,16 +1,21 @@
 <template>
 <div>
   <el-button @click="addScreen">Add Screen</el-button>
-  <el-button>Save &amp; Generate</el-button>
+  <el-button @click="saveGenerate">Save &amp; Generate</el-button>
   <div style="margin-top: 20px">
-    <el-card style="width: 200px; cursor: pointer;"
+    <el-card style="width: 200px; float: left; margin: 10px;"
       :body-style="{ padding: '0px' }"
-      v-for="screen in screens" :key="screen.name"
-      shadow="hover" @click.native="openScreen(screen)">
-      <div style="width: 200px; height: 200px; text-align: center;">
+      v-for="screen in screens.screens" :key="screen.name"
+      shadow="hover">
+      <div @click="openScreen(screen)" style="width: 200px; height: 200px; text-align: center; cursor: pointer;">
         <img :src="screen.dataurl" style="max-width: 200px; max-height: 200px;">
       </div>
-      <div>{{ screen.name }}</div>
+      <div style="padding: 7px;">
+        <span>{{ screen.name }}</span>
+        <div style="margin: 7px; float: right;">
+          <el-button @click="delScreen(screen)" size="mini" type="danger" icon="el-icon-delete" circle></el-button>
+        </div>
+      </div>
     </el-card>
   </div>
 </div>
@@ -43,18 +48,22 @@ export default {
         // ignore error
       }
       const localPath = path.join(this.path, 'screens', `${uuid()}.png`);
-      await new Promise(r => image.write(localPath, r));
+      await image.writeAsync(localPath);
       screen.image = localPath;
       screen.dataurl = await image.getBase64Async('image/png');
-      this.screens.push(screen);
+      this.screens.add(screen);
       this.$emit('open', screen);
     },
     delScreen(screen) {
-      this.screens.delScreen(screen);
+      this.screens.del(screen);
     },
     openScreen(screen) {
-      console.log(screen);
       this.$emit('open', screen);
+    },
+    async saveGenerate() {
+      await this.screens.save();
+      await this.screens.generate();
+      await this.screens.save();
     },
   },
 }
