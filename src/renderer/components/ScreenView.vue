@@ -7,7 +7,7 @@
         <canvas id="c"></canvas>
       </el-main>
 
-      <el-aside width="300px" style="padding-top: 20px;">
+      <el-aside width="300px" style="padding: 20px 10px 10px 20px;">
         <p>
           <el-switch v-model="screen.match" active-text="Match Screen"></el-switch>
         </p>
@@ -32,6 +32,14 @@
         <div v-else-if="editing && editing.type == 'detectZone'">
           <h2>Detection Zone</h2>
           <img style="max-width: 300px" :src="image.toDataURL({ left: this.editing.left, top: this.editing.top, width: this.editing.width, height: this.editing.height })">
+          <p>
+            similarly: {{ editing.similarly }} <br />
+            <el-slider :min="0" :max="1" :step="0.05" v-model="editing.similarly"></el-slider>
+          </p>
+          <p>
+            search range: {{ editing.range }} <br />
+            <el-slider :min="0" :max="image.width" v-model="editing.range"></el-slider>
+          </p>
           <pre>{{ JSON.stringify(editing, null, 2) }}</pre>
           <el-button type="danger" @click="delDetectZone(editing)">Delete</el-button>
         </div>
@@ -69,6 +77,7 @@ export default {
       canvas: null,
       adding: null,
       editing: null,
+      rangeBox: null,
     };
   },
   name: 'screen-view',
@@ -81,12 +90,39 @@ export default {
         this.canvas.defaultCursor = 'default';
       }
     },
+    editing() {
+      if (this.editing && this.editing.type == 'detectZone' && !this.rangeBox) {
+        this.rangeBox = new fabric.Rect({
+          left: this.editing.left - this.editing.range / 2,
+          top: this.editing.top - this.editing.range / 2,
+          width: this.editing.width + this.editing.range,
+          height: this.editing.height + this.editing.range,
+          fill: 'white',
+          opacity: 0.2,
+          stroke: 'orange',
+          strokeWidth: 2,
+          selectable: false,
+        });
+        this.canvas.add(this.rangeBox);
+      }
+    },
     'editing.next': function() {
       if (this.editing && this.editing.rect && this.editing.type == 'hotspot') {
         for (const o of this.editing.rect.getObjects()) {
           o.set('text', this.editing.name);
           o.canvas.renderAll();
         }
+      }
+    },
+    'editing.range': function() {
+      if (this.rangeBox && this.editing && this.editing.type == 'detectZone') {
+        this.rangeBox.set({
+          left: this.editing.left - this.editing.range / 2,
+          top: this.editing.top - this.editing.range / 2,
+          width: this.editing.width + this.editing.range,
+          height: this.editing.height + this.editing.range,
+        });
+        this.canvas.renderAll();
       }
     },
   },
@@ -219,6 +255,10 @@ export default {
       });
       this.canvas.on('selection:cleared', o => {
         this.editing = null;
+        if (this.rangeBox) {
+          this.canvas.remove(this.rangeBox)
+          this.rangeBox = null;
+        }
       });
     },
     async openImage() {

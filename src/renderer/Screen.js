@@ -37,13 +37,15 @@ export class Hotspot {
 }
 
 export class DetectZone {
-  constructor({ left, top, width, height, file }) {
+  constructor({ left, top, width, height, file, similarly, range }) {
     this.type = 'detectZone';
     this.left = left;
     this.top = top;
     this.width = width;
     this.height = height;
     this.file = file;
+    this.similarly = similarly || 0.8;
+    this.range = range || 0;
   }
 
   toJSON() {
@@ -53,6 +55,8 @@ export class DetectZone {
       width: this.width,
       height: this.height,
       file: this.file,
+      similarly: this.similarly,
+      range: this.range,
     };
   }
 
