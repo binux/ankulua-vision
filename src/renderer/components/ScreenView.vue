@@ -3,7 +3,7 @@
     <el-button @click="$emit('save', screen)" :disabled="!screen.name || screenNames.indexOf(screen.name) !== -1">Save</el-button>
     <span v-if="!screen.name">need screen name</span>
     <span v-if="screen.name && screenNames.indexOf(screen.name) !== -1">duplicate name</span>
-    <el-button v-if="history.length" @click="jumpTo(history.pop())">&lt;</el-button>
+    <el-button v-if="history.length" @click="history.pop();jumpTo(history.pop())">&lt;</el-button>
 
     <el-dialog title="Select Screen" v-if="selectScreenDialog && editing && editing.type === 'hotspot' && (editing.next.length > 1 || editing.next[0] === '[any]')" :visible="true">
       <el-button v-for="next in nextFilter(editing.next)" :key="next" @click="jumpTo(next)">{{ next }}</el-button>
@@ -194,24 +194,29 @@ export default {
       return [...result].sort();
     },
     jumpTo(name) {
+      let jumpTo;
       this.selectScreenDialog = false;
       for (let i = 0; i < this.screens.screens.length; i++) {
         const screen = this.screens.screens[i]
         if (name === '[next-screen]' && screen === this.screen) {
-          this.canvas.clear();
-          return this.$emit('open', this.screens.screens[i+1]);
+          jumpTo = this.screens.screens[i+1];
+          break;
         } else if (name === '[prev-screen]' && screen === this.screen) {
-          this.canvas.clear();
-          return this.$emit('open', this.screens.screens[i-1]);
+          jumpTo = this.screens.screens[i-1];
+          break;
         } else if (screen.name == name) {
-          this.canvas.clear();
-          return this.$emit('open', screen);
+          jumpTo = screen;
         }
       }
-      this.$message({
-        message: `Cannot find screen ${name}.`,
-        type: 'warning'
-      });
+      if (jumpTo) {
+        this.canvas.clear();
+        return this.$emit('open', jumpTo);
+      } else {
+        this.$message({
+          message: `Cannot find screen ${name}.`,
+          type: 'warning'
+        });
+      }
     },
     addHotspot(hotspot) {
       const rect = new fabric.Rect({
