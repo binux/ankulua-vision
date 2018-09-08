@@ -1,7 +1,7 @@
 <template>
   <div id="app">
     <list-view v-if="screens && !screen" :screens="screens" :path="path" @open="openScreen"></list-view>
-    <screen-view v-if="screens && screen" :screens="screens" :screen="screen" :path="path" @save="saveScreen"></screen-view>
+    <screen-view v-if="screens && screen" :screens="screens" :screen="screen" @save="saveScreen" @open="openScreen"></screen-view>
   </div>
 </template>
 

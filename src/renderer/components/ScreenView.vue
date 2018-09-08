@@ -3,6 +3,12 @@
     <el-button @click="$emit('save', screen)" :disabled="!screen.name || screenNames.indexOf(screen.name) !== -1">Save</el-button>
     <span v-if="!screen.name">need screen name</span>
     <span v-if="screen.name && screenNames.indexOf(screen.name) !== -1">duplicate name</span>
+    <el-button v-if="history.length" @click="jumpTo(history.pop())">&lt;</el-button>
+
+    <el-dialog title="Select Screen" v-if="selectScreenDialog && editing && editing.type === 'hotspot' && (editing.next.length > 1 || editing.next[0] === '[any]')" :visible="true">
+      <el-button v-for="next in nextFilter(editing.next)" :key="next" @click="jumpTo(next)">{{ next }}</el-button>
+    </el-dialog>
+
     <el-container>
       <el-main ref="main">
         <el-autocomplete v-model="screen.name" placeholder="name" :fetch-suggestions="nameSuggest"></el-autocomplete>
@@ -37,8 +43,8 @@
         </div>
         <div v-if="editing">
           <p>
-            similarly: <el-input size="mini" v-model.number="editing.similarly" style="width: 55px"></el-input>  <br />
-            <el-slider :min="0" :max="1" :step="0.05" v-model="editing.similarly"></el-slider>
+            similarity: <el-input size="mini" v-model.number="editing.similarity" style="width: 55px"></el-input>  <br />
+            <el-slider :min="0" :max="1" :step="0.05" v-model="editing.similarity"></el-slider>
           </p>
           <p>
             search range: <el-input size="mini" v-model.number="editing.range" style="width: 70px"></el-input>  <br />
@@ -86,7 +92,9 @@ export default {
       adding: null,
       editing: null,
       rangeBox: null,
+      selectScreenDialog: false,
 
+      history: [],
       screenNames: [],
       newScreenNames: [],
     };
@@ -102,7 +110,7 @@ export default {
       }
     },
     editing() {
-      if (this.editing && !this.rangeBox) {
+      if (this.canvas && this.editing && !this.rangeBox) {
         this.rangeBox = new fabric.Rect({
           left: this.editing.left - this.editing.range / 2,
           top: this.editing.top - this.editing.range / 2,
@@ -118,7 +126,7 @@ export default {
       }
     },
     'editing.next': function() {
-      if (this.editing && this.editing.rect && this.editing.type == 'hotspot') {
+      if (this.canvas && this.editing && this.editing.rect && this.editing.type == 'hotspot') {
         for (const o of this.editing.rect.getObjects()) {
           o.set('text', this.editing.name);
           o.canvas.renderAll();
@@ -126,7 +134,7 @@ export default {
       }
     },
     'editing.range': function() {
-      if (this.rangeBox && this.editing) {
+      if (this.canvas && this.rangeBox && this.editing) {
         this.rangeBox.set({
           left: this.editing.left - this.editing.range / 2,
           top: this.editing.top - this.editing.range / 2,
@@ -136,28 +144,75 @@ export default {
         this.canvas.renderAll();
       }
     },
+    'screen': async function() {
+      this.image = null;
+      this.editing = null;
+      this.adding = null,
+      this.editing = null,
+      this.rangeBox = null,
+      await this.initNames();
+      await this.openImage();
+    },
   },
   async mounted() {
-    const seenNames = new Set();
-    const newNames = new Set();
-    for (const screen of this.screens.screens) {
-      if (screen === this.screen) continue;
-      if (!screen.name) continue;
-      seenNames.add(screen.name);
-      for (const hotspot of screen.hotspots) {
-        for (const next of hotspot.next) {
-          if (!next) continue;
-          if (next.startsWith('[')) continue;
-          newNames.add(next)
-        }
-      }
-    }
-    this.newScreenNames = [...newNames].filter(x => !seenNames.has(x));
-    this.screenNames = [...seenNames];
-
+    await this.initNames();
+    await this.initCanvas();
     await this.openImage();
   },
   methods: {
+    async initNames() {
+      const seenNames = new Set();
+      const newNames = new Set();
+      for (const screen of this.screens.screens) {
+        if (screen === this.screen) continue;
+        if (!screen.name) continue;
+        seenNames.add(screen.name);
+        for (const hotspot of screen.hotspots) {
+          for (const next of hotspot.next) {
+            if (!next) continue;
+            if (next.startsWith('[')) continue;
+            newNames.add(next)
+          }
+        }
+      }
+      this.newScreenNames = [...newNames].filter(x => !seenNames.has(x));
+      this.screenNames = [...seenNames];
+    },
+    nextFilter(nexts) {
+      const result = new Set();
+      for (const n of nexts) {
+        if (n === '[any]') {
+          this.screens.screens
+            .filter(s => s.match == true)
+            .forEach(s => result.add(s.name));
+        } else if (n.startsWith('[') && n.endsWith(']')) {
+          result.add(n);
+        } else if (this.screenNames.includes(n)) {
+          result.add(n);
+        }
+      }
+      return [...result].sort();
+    },
+    jumpTo(name) {
+      this.selectScreenDialog = false;
+      for (let i = 0; i < this.screens.screens.length; i++) {
+        const screen = this.screens.screens[i]
+        if (name === '[next-screen]' && screen === this.screen) {
+          this.canvas.clear();
+          return this.$emit('open', this.screens.screens[i+1]);
+        } else if (name === '[prev-screen]' && screen === this.screen) {
+          this.canvas.clear();
+          return this.$emit('open', this.screens.screens[i-1]);
+        } else if (screen.name == name) {
+          this.canvas.clear();
+          return this.$emit('open', screen);
+        }
+      }
+      this.$message({
+        message: `Cannot find screen ${name}.`,
+        type: 'warning'
+      });
+    },
     addHotspot(hotspot) {
       const rect = new fabric.Rect({
         left: hotspot.left,
@@ -184,6 +239,20 @@ export default {
       });
       group.setControlsVisibility({
         mtr: false,
+      });
+      group.on('mousedblclick', o => {
+        if (hotspot.next.length == 0) {
+          this.$message({
+            message: 'No screen defined.',
+            type: 'warning'
+          });
+          this.editing = hotspot;
+        } else if (hotspot.next.length == 1 && hotspot.next[0] !== '[any]') {
+          this.jumpTo(hotspot.next[0]);
+        } else {
+          this.selectScreenDialog = true;
+          this.editing = hotspot;
+        }
       });
       group.on('selected', o => {
         this.editing = hotspot;
@@ -297,7 +366,9 @@ export default {
       });
     },
     async openImage() {
-      this.initCanvas();
+      if (this.history[this.history.length - 1] !== this.screen.name) {
+        this.history.push(this.screen.name);
+      }
       this.image = await new Promise(r => {
         fabric.Image.fromURL(this.screen.dataurl, r);
       });

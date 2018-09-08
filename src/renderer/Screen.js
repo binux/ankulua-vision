@@ -6,21 +6,21 @@ import rimraf from 'rimraf';
 export class Hotspot {
   static NEXT_SCREEN = '[next-screen]';
 
-  constructor({ next, left, top, width, height, file, similarly, range, timeout }) {
+  constructor({ next, left, top, width, height, file, similarity, range, timeout }) {
     this.type = 'hotspot';
-    this.next = next || [Hotspot.NEXT_SCREEN];
+    this.next = next || [];
     this.left = left;
     this.top = top;
     this.width = width;
     this.height = height;
     this.file = file;
-    this.similarly = similarly !== undefined ? similarly : 0.8;
+    this.similarity = similarity !== undefined ? similarity : 0.8;
     this.range = range !== undefined ? range : 10;
     this.timeout = timeout !== undefined ? timeout : 10;
   }
 
   get name() {
-    return this.next.join(' | ') || '[any]';
+    return this.next.join(' | ') || '[unamed]';
   }
 
   toJSON() {
@@ -31,7 +31,7 @@ export class Hotspot {
       width: this.width,
       height: this.height,
       file: this.file,
-      similarly: this.similarly,
+      similarity: this.similarity,
       range: this.range,
       timeout: this.timeout,
     };
@@ -43,14 +43,14 @@ export class Hotspot {
 }
 
 export class DetectZone {
-  constructor({ left, top, width, height, file, similarly, range, timeout }) {
+  constructor({ left, top, width, height, file, similarity, range, timeout }) {
     this.type = 'detectZone';
     this.left = left;
     this.top = top;
     this.width = width;
     this.height = height;
     this.file = file;
-    this.similarly = similarly !== undefined ? similarly : 0.8;
+    this.similarity = similarity !== undefined ? similarity : 0.8;
     this.range = range !== undefined ? range : 10;
     this.timeout = timeout !== undefined ? timeout : 10;
   }
@@ -62,7 +62,7 @@ export class DetectZone {
       width: this.width,
       height: this.height,
       file: this.file,
-      similarly: this.similarly,
+      similarity: this.similarity,
       range: this.range,
       timeout: this.timeout,
     };
