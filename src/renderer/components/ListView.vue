@@ -1,11 +1,14 @@
 <template>
 <div>
-  <el-button @click="addScreen">Add Screen</el-button>
+  <el-button @click="addScreen()">Add Screen</el-button>
   <el-button @click="saveGenerate" :loading="loading">Save &amp; Generate</el-button>
+  <el-input v-model="filter" style="width: 500px; margin-left: 10px" placeholder="search"></el-input>
   <div style="margin-top: 20px;">
     <el-card style="width: 350px; float: left; margin: 10px;"
       :body-style="{ padding: '0px' }"
-      v-for="screen in screens.screens" :key="screen.name"
+      v-for="screen in screens.screens"
+      v-show="searchName(screen, filter)"
+      :key="screen.name"
       shadow="hover">
       <div @click="openScreen(screen)" style="text-align: center; cursor: pointer;">
         <img :src="screen.dataurl" style="max-width: 360px; max-height: 200px;">
@@ -38,6 +41,7 @@ export default {
   data() {
     return {
       loading: false,
+      filter: '',
     };
   },
   methods: {
@@ -87,9 +91,19 @@ export default {
       this.loading = true;
       await this.screens.save();
       await this.screens.generate();
+      if (!fs.existsSync(path.join(this.path, 'dkjson.lua')))
+        fs.copyFileSync(path.join(__static, 'dkjson.lua'), path.join(this.path, 'dkjson.lua'));
+      if (!fs.existsSync(path.join(this.path, 'stateMachine.lua')))
+        fs.copyFileSync(path.join(__static, 'stateMachine.lua'), path.join(this.path, 'stateMachine.lua'));
+      if (!fs.existsSync(path.join(this.path, 'start.lua')))
+        fs.copyFileSync(path.join(__static, 'start.lua'), path.join(this.path, 'start.lua'));
       await this.screens.save();
       this.loading = false;
     },
+    searchName(screen, filter) {
+      if (screen.name.toLowerCase().includes(filter.toLowerCase())) return true;
+      return false;
+    }
   },
 }
 

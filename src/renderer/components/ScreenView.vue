@@ -1,9 +1,9 @@
 <template>
   <div>
-    <el-button @click="$emit('save', screen)" :disabled="!screen.name || screenNames.indexOf(screen.name) !== -1">Save</el-button>
+    <el-button @click="$emit('save', screen)" :disabled="!screen.name || screenNames.indexOf(screen.name) !== -1">Back</el-button>
     <span v-if="!screen.name">need screen name</span>
     <span v-if="screen.name && screenNames.indexOf(screen.name) !== -1">duplicate name</span>
-    <el-button v-if="history.length" @click="history.pop();jumpTo(history.pop())">&lt;</el-button>
+    <el-button v-if="history.length > 1" @click="history.pop();jumpTo(history.pop())">&lt;</el-button>
 
     <el-dialog title="Select Screen" v-if="selectScreenDialog && editing && editing.type === 'hotspot' && (editing.next.length > 1 || editing.next[0] === '[any]')" :visible="true">
       <el-button v-for="next in nextFilter(editing.next)" :key="next" @click="jumpTo(next)">{{ next }}</el-button>
@@ -16,6 +16,7 @@
       </el-main>
 
       <el-aside width="300px" style="padding: 20px 10px 10px 20px;">
+        <el-button @click="changeImage()">Change Image</el-button>
         <p>
           <el-switch v-model="screen.match" active-text="Match Screen"></el-switch>
         </p>
@@ -64,6 +65,8 @@
 
 <script> 
 import fs from 'fs';
+import path from 'path';
+import Jimp from 'jimp';
 import { fabric } from 'fabric';
 import { Hotspot, DetectZone } from '../Screen';
 
@@ -100,7 +103,7 @@ export default {
     };
   },
   name: 'screen-view',
-  props: ['screen', 'screens'],
+  props: ['screen', 'screens', 'path'],
   watch: {
     adding(value) {
       if (value) {
@@ -392,6 +395,29 @@ export default {
     nameSuggest(queryString, cb) {
       const result = queryString ? this.newScreenNames.filter(x => x.toLowerCase().indexOf(queryString.toLowerCase()) === 0) : this.newScreenNames;
       cb(result.map(x => ({ value: x })));
+    },
+    async changeImage() {
+      const [imagePath] = this.$electron.remote.dialog.showOpenDialog({
+        message: 'select image',
+        properties: ['openFile', ],
+        filters: [
+          { name: 'Images', extensions: ['jpg', 'png', 'gif'] },
+        ],
+      });
+      if (!imagePath) return;
+      const image = await Jimp.read(imagePath);
+      const localPath = path.join(this.path, 'screens', this.screen.image);
+      await image.writeAsync(localPath);
+      this.screen.dataurl = await image.getBase64Async('image/png');
+      this.image = await new Promise(r => {
+        fabric.Image.fromURL(this.screen.dataurl, r);
+      });
+      const ratio = Math.min((this.$refs.main.$el.clientWidth - 40) / this.image.width, (window.innerHeight - 100) / this.image.height);
+      this.canvas.setZoom(ratio);
+      this.canvas.setWidth(this.image.width * ratio);
+      this.canvas.setHeight(this.image.height * ratio);
+      this.canvas.setBackgroundImage(this.image);
+      this.canvas.renderAll();
     },
   },
 }
