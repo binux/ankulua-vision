@@ -180,7 +180,8 @@ function stateMachine:zoomOut()
     wait(0.5)
   until self:find(nil, "_lastScreen.png")
   wait(1)
-  startApp("com.digitalsky.girlsfrontline.cn")
+  -- You may need to switch app after zoom
+  -- startApp("com.digitalsky.girlsfrontline.cn")
 end
 
 function stateMachine:updateState(state)
