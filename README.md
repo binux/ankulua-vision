@@ -15,6 +15,8 @@ https://github.com/binux/ankulua-vision/releases
 
 #### How to use
 
+![screenshot](static/Screenshot.png)
+
 1. Run the app, select your work folder for the script.
 2. Add screen capture of the game by clicking `Add Screen` or drag and drop into the window.
 3. Name the screen like `base`, `battle`, `mission`
