@@ -1,6 +1,6 @@
 {
   "name": "ankulua-vision",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "scripts": {
     "build": "node .electron-vue/build.js",
     "postinstall": "",
