@@ -111,22 +111,32 @@ function stateMachine:dragFind(image, down, left)
   if m then return m end
 
   local mid = Location(self.wholeWindow:getW() * 0.5, self.wholeWindow:getH() * 0.5)
+  local yOffset = self.wholeWindow:getH() * 0.2
+  local xOffset = self.wholeWindow:getW() * 0.2
+  -- need to be improved, sometimes it will unselect something during drag
+  -- if typeOf(image) == "string" and self.hotspotsMap[image] then
+  --   local z = self.hotspotsMap[image]
+  --   local region = Region(z.left, z.top, z.width, z.height)
+  --   mid = region:getCenter()
+  -- end
+
   repeat
     self.wholeWindow:save("_lastScreen.png")
     if down and down > 0 then
-      swipe(mid, Location(mid:getX(), mid:getY() * 1.5))
+      swipe(mid, Location(mid:getX(), mid:getY() + yOffset))
     elseif down and down < 0 then
-      swipe(mid, Location(mid:getX(), mid:getY() * 0.5))
+      swipe(mid, Location(mid:getX(), mid:getY() - yOffset))
     elseif down and down == 0 then
       return self:dragFind(image, 1) or self:dragFind(image, -1)
     end
     if left and left > 0 then
-      swipe(mid, Location(mid:getX() * 0.5, mid:getY()))
+      swipe(mid, Location(mid:getX() - xOffset, mid:getY()))
     elseif left and left < 0 then
-      swipe(mid, Location(mid:getX() * 1.5, mid:getY()))
+      swipe(mid, Location(mid:getX() + xOffset, mid:getY()))
     elseif left and left == 0 then
       return self:dragFind(image, nil, -1) or self:dragFind(image, nil, 1)
     end
+    wait(0.5)
     local m = self:find(image)
     if m then return m end
   until self:find("_lastScreen.png")
@@ -164,8 +174,10 @@ end
 function stateMachine:zoomOut()
   repeat
     self.wholeWindow:save("_lastScreen.png")
-    zoom(50, 350, 330, 350, 1200, 350, 350, 350, 300)
-    wait(1)
+    zoom(600, 50, 1000, 50, 1500, 50, 1100, 50, 300)
+    wait(0.5)
+    zoom(700, 350, 1000, 350, 1500, 350, 1200, 350, 300)
+    wait(0.5)
   until self:find(nil, "_lastScreen.png")
   wait(1)
   startApp("com.digitalsky.girlsfrontline.cn")
@@ -245,7 +257,7 @@ function stateMachine:leaveState(state, timeout)
 
   while t:check() < timeout do
     if self:checkState(screen) then
-      wait(1)
+      wait(0.1)
     else
       return true
     end
@@ -253,7 +265,7 @@ function stateMachine:leaveState(state, timeout)
   return false
 end
 
-function stateMachine:waitStates(states, timeout)
+function stateMachine:waitStates(states, timeout, waitStatesDebounce)
   if typeOf(states) == "string" then
     states = {states}
   end
@@ -282,6 +294,9 @@ function stateMachine:waitStates(states, timeout)
     end
     self:findEnd()
     if bestScore > 0 then
+      if waitStatesDebounce == false then
+        return bestState
+      end
       wait(self.waitStatesDebounce)
       if self:checkState(bestState) then
         self:updateState(bestState)
@@ -292,6 +307,9 @@ function stateMachine:waitStates(states, timeout)
     if hasAny then
       local getState = self:getState()
       if getState then
+        if waitStatesDebounce == false then
+          return getState
+        end
         wait(self.waitStatesDebounce)
         if self:checkState(getState) then
           self:updateState(getState)
@@ -301,7 +319,7 @@ function stateMachine:waitStates(states, timeout)
       end
     end
     if noSearch then return nil end
-    wait(0.3)
+    wait(0.1)
   end
 end
 
@@ -367,7 +385,9 @@ function stateMachine:play(state, target)
   end
 
   if screen.actions[target] then
-    return screen.actions[target](), true
+    local newState = screen.actions[target]()
+    self:log('played, newState: ' .. (newState or 'nil') .. ', true')
+    return newState, true
   end
 
   local hotspot
@@ -395,6 +415,7 @@ function stateMachine:play(state, target)
     self:leaveState(state, hotspot.timeout)
     local newState = self:getState()
     self:updateState(newState)
+    self:log('played, newState: ' .. (newState or 'nil') .. ', false')
     return newState
   end
 
@@ -430,6 +451,7 @@ function stateMachine:play(state, target)
     newState = self:getState()
   end
   self:updateState(newState)
+  self:log('played, newState: ' .. (newState or 'nil') .. ', false')
   return newState
 end
 
